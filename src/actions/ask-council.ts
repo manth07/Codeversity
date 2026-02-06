@@ -53,14 +53,19 @@ async function generateWithOllama(model: string, prompt: string) {
 export async function askCouncil(sessionId: string, preferences: SessionPreferences) {
     console.log(`[Council] 🔴 PROCESSING ON LOCAL AI | Topic: ${preferences.topic}`);
 
-    // Default to Llama3, but fall back gracefully if not found (handled by user installing it)
-    const LOCAL_MODEL = "llama3";
+    // "Astra Stack" Model Configuration (Optimized for 8GB VRAM)
+    const MODELS = {
+        TUTOR: "deepseek-r1:8b",     // Chain of Thought (Primary Driver)
+        COUNCIL: "phi4",             // Logic & Safety (Small but smart)
+        FALLBACK: "llama3"           // Reliable backup
+    };
 
     try {
         // ---------------------------------------------------------
-        // STEP 1: THE TUTOR AGENT (Ollama)
+        // STEP 1: THE TUTOR AGENT (DeepSeek R1)
         // ---------------------------------------------------------
-        console.log(`[Council] Contacting Local Node (${LOCAL_MODEL})...`);
+        // Note: We use DeepSeek for its "Reasoning" capabilities (Chain of Thought).
+        console.log(`[Council] Contacting Tutor using ${MODELS.TUTOR}...`);
 
         const tutorPrompt = `
         You are the 'Universal Teaching Agent'.
@@ -77,15 +82,22 @@ export async function askCouncil(sessionId: string, preferences: SessionPreferen
         }
     `;
 
-        const draft = await generateWithOllama(LOCAL_MODEL, tutorPrompt);
+        // Logic to try specific model, fall back to generic Llama3 if missing
+        let draft;
+        try {
+            draft = await generateWithOllama(MODELS.TUTOR, tutorPrompt);
+        } catch (e) {
+            console.warn(`[Council] Primary Tutor (${MODELS.TUTOR}) failed, falling back to ${MODELS.FALLBACK}`);
+            draft = await generateWithOllama(MODELS.FALLBACK, tutorPrompt);
+        }
 
         // ---------------------------------------------------------
-        // STEP 2: THE COUNCIL AGENT (Ollama)
+        // STEP 2: THE COUNCIL AGENT (Phi-4)
         // ---------------------------------------------------------
-        console.log("[Council] Auditing Content Locally...");
+        console.log(`[Council] Auditing Content with ${MODELS.COUNCIL}...`);
 
         const councilPrompt = `
-        You are the 'Audit Council'. Review this content for safety and accuracy.
+        You are the 'Audit Council' using the Phi-4 Mini Protocol. Review this content for safety and accuracy.
         
         Content: "${draft.mainContent}"
         Claims: ${JSON.stringify(draft.keyClaims)}
@@ -101,11 +113,17 @@ export async function askCouncil(sessionId: string, preferences: SessionPreferen
               "isPedagogicallyNeutral": true
            },
            "auditNotes": "Brief verification notes.",
-           "verifierIdentity": "Local_Ethics_Protocol"
+           "verifierIdentity": "Phi-4_Mini_Audit_Bot"
         }
     `;
 
-        const audit = await generateWithOllama(LOCAL_MODEL, councilPrompt);
+        let audit;
+        try {
+            audit = await generateWithOllama(MODELS.COUNCIL, councilPrompt);
+        } catch (e) {
+            console.warn(`[Council] Primary Auditor (${MODELS.COUNCIL}) failed, falling back to ${MODELS.FALLBACK}`);
+            audit = await generateWithOllama(MODELS.FALLBACK, councilPrompt);
+        }
 
         return {
             success: true,

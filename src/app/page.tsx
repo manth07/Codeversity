@@ -1,202 +1,430 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { BentoGrid, BentoGridItem } from '@/components/bento/bento-grid';
-import { CouncilCard } from '@/components/bento/council-card';
+// ------------------------------------------------------------------
+// ASTRA LEARN: LUMINA EDITION (Local AI + Deep Space UI)
+// ------------------------------------------------------------------
+
+import { useState, useRef, useEffect } from 'react';
 import { askCouncil, SessionPreferences } from '@/actions/ask-council';
 import { Loader2 } from 'lucide-react';
 
-export default function ActiveSessionPage() {
-  // Session State
+export default function LuminaPage() {
+  // ----------------------------------
+  // STATE: CORE SESSION
+  // ----------------------------------
   const [preferences, setPreferences] = useState<SessionPreferences>({
-    topic: '',
+    topic: 'Explain the formation of the Indian summer monsoon',
     ageGroup: 'Grade 10',
     difficulty: 'Intermediate',
     learningStyle: 'Visual'
   });
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<any>(null); // Stores backend response
 
-  const handleTransmit = async () => {
+  // ----------------------------------
+  // STATE: UI & MEDIA
+  // ----------------------------------
+  const [activeTab, setActiveTab] = useState(0);
+  const [confidence, setConfidence] = useState(0);
+  const [offlineMode, setOfflineMode] = useState(false);
+
+  // UI Toggles
+  const [showVideo, setShowVideo] = useState(true);
+  const [showText, setShowText] = useState(true);
+  const [showGraphic, setShowGraphic] = useState(true);
+  const [showAudio, setShowAudio] = useState(true);
+
+  // Audio/Video Playback Simulation State
+  const [isPlayingVideo, setIsPlayingVideo] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(43);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(31);
+
+  // ----------------------------------
+  // LOGIC: BACKEND INTEGRATION
+  // ----------------------------------
+  const handleGenerate = async () => {
     if (!preferences.topic) return;
     setLoading(true);
 
-    const response = await askCouncil('session-id-123', preferences);
+    try {
+      // Call Server Action (Ollama / Local AI)
+      const response = await askCouncil('session-lumina-v1', preferences);
 
-    if (response.success) {
-      setResult(response.data);
-    } else {
-      console.error(response.error);
+      if (response.success) {
+        setResult(response.data);
+        // Animate Confidence
+        let conf = 0;
+        const data: any = response.data;
+        const targetScore = Math.round(data.council.confidenceScore * 100);
+        const interval = setInterval(() => {
+          conf += 2;
+          if (conf >= targetScore) {
+            setConfidence(targetScore);
+            clearInterval(interval);
+          } else {
+            setConfidence(conf);
+          }
+        }, 20);
+      } else {
+        console.error("AI Error:", response.error);
+        // Even on error, we might want to show something or alert the user
+        // For now, simple alert
+        alert(response.error || "Generation connection failed. Is Ollama running?");
+      }
+    } catch (e) {
+      console.error("Transmission Failed", e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
+  // ----------------------------------
+  // LOGIC: MEDIA HANDLERS
+  // ----------------------------------
+  const handleSpeak = () => {
+    if (!result?.tutor?.videoScript) return;
+
+    if (isPlayingAudio) {
+      window.speechSynthesis.cancel();
+      setIsPlayingAudio(false);
+    } else {
+      const speech = new SpeechSynthesisUtterance(result.tutor.videoScript);
+      speech.onend = () => setIsPlayingAudio(false);
+      window.speechSynthesis.speak(speech);
+      setIsPlayingAudio(true);
+    }
+  };
+
+  // ----------------------------------
+  // RENDER
+  // ----------------------------------
   return (
-    <main className="min-h-screen p-8 pt-24 pb-32 max-w-7xl mx-auto flex flex-col gap-8">
-
-      {/* Header / Input Section */}
-      <header className="space-y-4 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-mono text-cyan-400">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-          </span>
-          Universal Teaching Agent
-        </div>
-
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-white via-cyan-100 to-indigo-200">
-          AstraLearn
-        </h1>
-
-        {/* Input Form */}
-        <div className="max-w-xl mx-auto flex flex-col gap-4 mt-8 p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-          <input
-            type="text"
-            placeholder="What do you want to learn today?"
-            className="w-full bg-transparent border-b border-white/20 p-2 text-xl outline-none focus:border-cyan-400 transition-colors placeholder:text-white/20"
-            value={preferences.topic}
-            onChange={(e) => setPreferences({ ...preferences, topic: e.target.value })}
-          />
-
-          <div className="grid grid-cols-3 gap-2">
-            <select
-              className="bg-black/40 border border-white/10 rounded-lg p-2 text-sm text-white/70 outline-none"
-              value={preferences.ageGroup}
-              onChange={(e) => setPreferences({ ...preferences, ageGroup: e.target.value })}
-            >
-              <option>Grade 5</option>
-              <option>Grade 8</option>
-              <option>Grade 10</option>
-              <option>Undergrad</option>
-              <option>PhD</option>
-            </select>
-            <select
-              className="bg-black/40 border border-white/10 rounded-lg p-2 text-sm text-white/70 outline-none"
-              value={preferences.difficulty}
-              onChange={(e) => setPreferences({ ...preferences, difficulty: e.target.value })}
-            >
-              <option>Beginner</option>
-              <option>Intermediate</option>
-              <option>Expert</option>
-            </select>
-            <select
-              className="bg-black/40 border border-white/10 rounded-lg p-2 text-sm text-white/70 outline-none"
-              value={preferences.learningStyle}
-              onChange={(e) => setPreferences({ ...preferences, learningStyle: e.target.value })}
-            >
-              <option>Visual</option>
-              <option>Socratic</option>
-              <option>Text-Heavy</option>
-            </select>
+    <div className="flex h-screen overflow-hidden bg-[#f8f9f6] font-sans text-slate-900">
+      {/* ----------------------------------------------------
+               SIDEBAR
+            ---------------------------------------------------- */}
+      <div className="w-60 bg-[#0f1724] text-white flex-shrink-0 flex flex-col">
+        {/* Logo */}
+        <div className="p-6 border-b border-slate-700">
+          <div className="flex items-center gap-x-3">
+            <span className="inline-block h-px w-5 bg-emerald-400"></span>
+            <span className="font-serif text-xs tracking-[0.065em] uppercase">lumina</span>
           </div>
         </div>
-      </header>
 
-      {/* Results Grid */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-          <p className="text-sm font-mono text-cyan-200/50">Consulting the Council...</p>
-        </div>
-      ) : result ? (
-        <BentoGrid className="max-w-6xl mx-auto">
-          {/* Main Explanation */}
-          <BentoGridItem
-            className="md:col-span-2 min-h-[300px]"
-            title={preferences.topic} // Dynamic Topic
-            description={result.tutor.mainContent.substring(0, 150) + "..."}
-            header={<div className="p-6 text-sm text-white/80 leading-relaxed font-mono">{result.tutor.mainContent}</div>}
-          />
-
-          {/* Council Audit Card */}
-          <BentoGridItem
-            className="md:col-span-1"
-            title="Council Audit"
-            header={
-              <CouncilCard
-                verdict={result.council.verdict}
-                confidence={result.council.confidenceScore}
-                verifierName={result.council.verifierIdentity}
-                notes={result.council.auditNotes}
-              />
-            }
-          />
-
-          {/* Multimodal: Video Script & TTS */}
-          <BentoGridItem
-            className="md:col-span-1"
-            title="Video Script (Audio Mode)"
-            header={
-              <div className="h-full flex flex-col justify-between bg-white/5 p-4 rounded-xl border border-dashed border-white/10 group">
-                <p className="text-xs font-mono text-white/50 line-clamp-6 italic">
-                  "{result.tutor.videoScript}"
-                </p>
+        {/* Navigation */}
+        <nav className="flex-1 py-8">
+          <ul className="space-y-1 px-3">
+            {['Discover', 'My Paths', 'Library', 'History'].map((item, idx) => (
+              <li key={item}>
                 <button
-                  onClick={() => {
-                    const speech = new SpeechSynthesisUtterance(result.tutor.videoScript);
-                    window.speechSynthesis.speak(speech);
-                  }}
-                  className="mt-4 w-full flex items-center justify-center gap-2 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg transition-colors text-xs font-bold uppercase tracking-widest"
+                  onClick={() => setActiveTab(idx)}
+                  className={`flex items-center gap-3 px-5 py-3 text-sm font-medium rounded-2xl w-full text-left transition-colors ${activeTab === idx
+                    ? 'bg-emerald-400 text-slate-900'
+                    : 'hover:bg-slate-800 text-slate-300'
+                    }`}
                 >
-                  ▶ Play Narration
+                  {/* Simplified Icon Placeholder */}
+                  <div className={`w-2 h-2 rounded-full ${activeTab === idx ? 'bg-slate-900' : 'bg-slate-500'}`} />
+                  {item}
                 </button>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-10 px-6">
+            <p className="uppercase tracking-widest text-slate-500 text-[10px] mb-3 font-medium">Active Context</p>
+            <div className="bg-slate-800/50 rounded-3xl p-1 text-xs space-y-1">
+              <div className="bg-emerald-400 text-slate-900 rounded-2xl py-2 px-4 text-center font-semibold cursor-pointer truncate">
+                {preferences.topic.substring(0, 20)}...
               </div>
-            }
-          />
-
-          {/* Multimodal: Real-Time AI Generation */}
-          <BentoGridItem
-            className="md:col-span-2"
-            title="Generative Diagram"
-            header={
-              <div className="relative h-full w-full min-h-[200px] bg-black rounded-xl overflow-hidden border border-white/10 group">
-                {/* Free AI Image Generation via Pollinations.ai */}
-                <img
-                  src={`https://image.pollinations.ai/prompt/${encodeURIComponent(result.tutor.diagramPrompt + " educational, minimal, neon style, dark background, 8k")}`}
-                  alt="Generated Diagram"
-                  className="absolute inset-0 h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-700"
-                  loading="lazy"
-                />
-
-                {/* Overlay Prompt Text */}
-                <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/90 to-transparent p-4">
-                  <div className="text-[10px] text-emerald-400 font-mono mb-1">// REAL-TIME_RENDER_COMPLETE</div>
-                  <p className="text-xs text-white/60 line-clamp-1">{result.tutor.diagramPrompt}</p>
-                </div>
-              </div>
-            }
-          />
-        </BentoGrid>
-      ) : (
-        <div className="flex flex-col items-center justify-center h-64 opacity-50">
-          <p className="text-sm font-mono text-white/30">Enter a topic to begin session.</p>
-        </div>
-      )}
-
-      {/* Bottom Bar Input */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-50">
-        <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-full blur opacity-30 group-hover:opacity-75 transition duration-1000"></div>
-          <div className="relative flex items-center bg-black/80 backdrop-blur-xl rounded-full border border-white/10 p-2 shadow-2xl">
-            <span className="pl-4 text-xs font-mono text-cyan-400 hidden sm:block">
-              ASTRA_TERMINAL_V1
-            </span>
-            <div className="flex-1 text-center text-sm text-white/50">
-              {loading ? "PROCESSING..." : "READY FOR TRANSMISSION"}
             </div>
-            <button
-              onClick={handleTransmit}
-              disabled={loading}
-              className={`px-6 py-2 rounded-full font-medium text-sm transition-all ${loading ? 'bg-white/10 text-white/30' : 'bg-white text-black hover:scale-105'}`}
-            >
-              {loading ? 'Thinking...' : 'Transmit'}
-            </button>
+          </div>
+        </nav>
+
+        {/* Offline & Accessibility */}
+        <div className="mt-auto border-t border-slate-700 p-6">
+          <div className="flex items-center justify-between mb-4 cursor-pointer" onClick={() => setOfflineMode(!offlineMode)}>
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-slate-400">
+              <span className={`inline-block h-px w-3 ${offlineMode ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
+              OFFLINE MODE
+            </div>
+            <div className={`relative w-9 h-5 rounded-full transition-colors ${offlineMode ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+              <div className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full transition-transform ${offlineMode ? 'translate-x-4' : 'translate-x-0'}`}></div>
+            </div>
+          </div>
+
+          <div className="h-px bg-slate-700 mb-4"></div>
+          <div className="mt-6 flex items-center gap-2 text-slate-400 text-xs">
+            <div className="w-px h-3 bg-slate-400"></div>
+            Local AI Node • Running
           </div>
         </div>
       </div>
 
-    </main>
+      {/* ----------------------------------------------------
+               MAIN CONTENT
+            ---------------------------------------------------- */}
+      <div className="flex-1 flex flex-col h-full bg-[#f8f9f6]">
+        {/* Top bar */}
+        <header className="h-14 border-b bg-white flex items-center px-6 justify-between flex-shrink-0">
+          <div className="flex items-center text-sm text-slate-400 gap-2">
+            <span className="font-mono text-xs bg-slate-100 px-2 py-px rounded uppercase">{preferences.ageGroup} • {preferences.difficulty}</span>
+            <span className="text-secondary">•</span>
+            <span className="text-emerald-600 font-medium truncate max-w-md">{loading ? "Thinking..." : (result ? "Session Active" : "Ready")}</span>
+          </div>
+
+          <div className="flex items-center gap-5">
+            <button
+              onClick={() => setResult(null)}
+              className="flex items-center gap-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+            >
+              NEW QUERY
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable Workspace */}
+        <div className="flex-1 overflow-auto">
+          {/* 1. HERO / PROMPT SECTION */}
+          <section className="relative h-[380px] flex items-center justify-center bg-[#0f1724] overflow-hidden flex-shrink-0">
+            {/* Background pattern */}
+            <div className="absolute inset-0 bg-[linear-gradient(#1e2937_1px,transparent_1px),linear-gradient(90deg,#1e2937_1px,transparent_1px)] bg-[size:32px_32px] opacity-30"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0f1724] via-[#0f1724]/80 to-transparent"></div>
+
+            <div className="relative z-10 text-center px-6 max-w-4xl mx-auto w-full">
+              <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.065em] text-emerald-400 mb-3">
+                <span className="h-px w-6 bg-emerald-400"></span> Powered by Local Intelligence
+              </div>
+
+              <h1 className="font-serif text-[4rem] md:text-[5.75rem] leading-[1.05] text-white tracking-[-0.01em] mb-4">
+                What will<br />you understand<br />
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-300">today?</span>
+              </h1>
+
+              {/* Prompt Input */}
+              <div className="relative max-w-2xl mx-auto mt-6">
+                <div className={`bg-white rounded-3xl shadow-xl shadow-slate-900/30 flex items-center px-5 py-2 transition-all duration-300 ${loading ? 'opacity-80' : 'focus-within:ring-4 focus-within:ring-emerald-400'}`}>
+                  <input
+                    type="text"
+                    className="bg-transparent flex-1 outline-none text-slate-700 placeholder:text-slate-400 text-base py-2"
+                    value={preferences.topic}
+                    onChange={(e) => setPreferences({ ...preferences, topic: e.target.value })}
+                    placeholder="Ask anything..."
+                    disabled={loading}
+                  />
+
+                  <button
+                    onClick={handleGenerate}
+                    disabled={loading}
+                    className={`transition-colors text-white text-sm font-semibold px-7 py-3 rounded-2xl flex-shrink-0 flex items-center gap-2 ${loading ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Thinking</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Generate</span>
+                        <span className="inline-block h-px w-3 bg-white/50"></span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 2. FILTERS */}
+          <div className="sticky top-0 z-20 bg-white border-b shadow-sm">
+            <div className="max-w-screen-2xl mx-auto px-8 py-4 flex flex-wrap items-center gap-3 lg:gap-6 overflow-x-auto">
+
+              {/* Domain (Static Decoration) */}
+              <div>
+                <span className="block text-[10px] font-mono text-slate-400 mb-px tracking-widest">DOMAIN</span>
+                <div className="inline-flex border border-slate-200 rounded-2xl overflow-hidden text-xs font-medium">
+                  <button className="px-5 py-1 bg-emerald-500 text-white">General</button>
+                </div>
+              </div>
+
+              {/* Difficulty */}
+              <div>
+                <span className="block text-[10px] font-mono text-slate-400 mb-px tracking-widest">LEVEL</span>
+                <div className="flex bg-slate-100 rounded-2xl p-px">
+                  {['Beginner', 'Intermediate', 'Expert'].map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setPreferences({ ...preferences, difficulty: level })}
+                      className={`text-xs px-4 py-px rounded-[13px] font-medium transition-colors ${preferences.difficulty === level ? 'bg-white shadow-sm text-slate-900 border border-slate-200' : 'text-slate-500 hover:text-slate-900'}`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Audience */}
+              <div>
+                <span className="block text-[10px] font-mono text-slate-400 mb-px tracking-widest">AUDIENCE</span>
+                <select
+                  className="bg-transparent border border-slate-200 text-xs rounded-xl py-1.5 pl-3 pr-8 text-slate-600 focus:outline-none"
+                  value={preferences.ageGroup}
+                  onChange={(e) => setPreferences({ ...preferences, ageGroup: e.target.value })}
+                >
+                  <option value="Grade 5">Kids (Grade 5)</option>
+                  <option value="Grade 10">Teens (Grade 10)</option>
+                  <option value="Undergrad">Uni Student</option>
+                  <option value="PhD">Expert</option>
+                </select>
+              </div>
+
+              {/* Toggles */}
+              <div className="ml-auto flex items-center gap-6 text-xs border-l pl-6 border-slate-100">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={showText} onChange={() => setShowText(!showText)} className="accent-emerald-500" />
+                  <span className="text-slate-500">Text</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={showGraphic} onChange={() => setShowGraphic(!showGraphic)} className="accent-emerald-500" />
+                  <span className="text-slate-500">Graphics</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. CONTENT WORKSPACE */}
+          <div className="max-w-screen-2xl mx-auto px-6 lg:px-8 py-8 min-h-[600px]">
+            {!result ? (
+              <div className="flex flex-col items-center justify-center h-full opacity-30 mt-20">
+                <div className="w-16 h-16 border-2 border-slate-300 rounded-full flex items-center justify-center mb-4">
+                  <span className="text-2xl text-slate-400">?</span>
+                </div>
+                <p className="text-sm font-mono text-slate-400">Waiting for query transmission...</p>
+              </div>
+            ) : (
+              <>
+                {/* Result Header */}
+                <div className="flex flex-wrap items-center justify-between mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                  <div>
+                    <div className="inline-flex items-center text-xs uppercase font-mono tracking-[0.065em] text-emerald-500 mb-px">
+                      Generated Locally • {confidence}% confidence
+                    </div>
+                    <h2 className="font-serif text-[2.5rem] leading-tight tracking-[-0.006em] text-slate-900">
+                      {preferences.topic}
+                    </h2>
+                    <p className="text-slate-500 text-sm italic">Verified by {result.council.verifierIdentity}</p>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-3xl py-2 px-4 flex items-center gap-3 text-xs shadow-sm">
+                    <span className="font-mono uppercase text-slate-400 text-[10px] tracking-widest">COUNCIL AUDIT</span>
+                    <div className="relative w-14 h-1 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`absolute left-0 top-0 h-full transition-all duration-1000 ${result.council.verdict === 'APPROVED' ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                        style={{ width: `${confidence}%` }}
+                      ></div>
+                    </div>
+                    <span className={`font-semibold tabular-nums ${result.council.verdict === 'APPROVED' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {result.council.verdict}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Main Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-20">
+
+                  {/* COL 1: TEXT EXPLANATION */}
+                  {showText && (
+                    <div className="lg:col-span-7 bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-100 h-fit animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+                      <div className="px-6 py-4 border-b flex items-center justify-between bg-slate-50">
+                        <div className="flex items-center gap-2 text-xs uppercase font-medium text-slate-500">
+                          <span className="bg-emerald-100 text-emerald-700 px-2 py-px rounded">Explanation</span>
+                        </div>
+                        <button onClick={handleSpeak} className="flex items-center text-emerald-600 hover:text-emerald-700 text-xs font-medium transition-colors">
+                          {isPlayingAudio ? "Stop Reading" : "Read Aloud"}
+                        </button>
+                      </div>
+
+                      <div className="p-7 max-h-[580px] overflow-auto leading-relaxed text-slate-700 text-[15px] whitespace-pre-wrap font-serif">
+                        {result.tutor.mainContent}
+                      </div>
+
+                      <div className="bg-slate-50 px-6 py-3 text-[11px] flex items-center border-t">
+                        <span className="font-mono text-slate-400">Source • Internal Knowledge Model (Llama 3)</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* COL 2: SIDEBAR MEDIA */}
+                  <div className="lg:col-span-5 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+
+                    {/* Graphic Panel (Pollinations AI) */}
+                    {showGraphic && (
+                      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm flex-1 flex flex-col overflow-hidden group">
+                        <div className="px-5 py-4 flex items-center justify-between border-b">
+                          <span className="uppercase text-xs font-medium tracking-widest">Dynamic Diagram</span>
+                          <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">LIVE RENDER</span>
+                        </div>
+
+                        <div className="relative aspect-square bg-[#f1f5f1] flex items-center justify-center overflow-hidden">
+                          {/* Pollinations Image */}
+                          <img
+                            src={`https://image.pollinations.ai/prompt/${encodeURIComponent(result.tutor.diagramPrompt + " educational scientific diagram, clean vector style, white background, detailed, labeled")}`}
+                            alt="Diagram"
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                        </div>
+
+                        <div className="px-5 py-3 border-t text-[11px] text-slate-500">
+                          Prompt: {result.tutor.diagramPrompt}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Audio/Script Panel */}
+                    <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
+                      <div className="bg-emerald-500 px-5 py-3 text-xs text-white flex items-center justify-between">
+                        <span className="font-medium flex items-center gap-2">
+                          <span className="bg-white/20 text-[10px] px-1.5 py-px rounded">Voice Narration</span>
+                        </span>
+                      </div>
+
+                      <div className="px-5 py-4">
+                        <p className="text-xs text-slate-500 italic mb-4 line-clamp-3">
+                          "{result.tutor.videoScript}"
+                        </p>
+
+                        <div className="flex items-center gap-4">
+                          <button onClick={handleSpeak} className="text-emerald-600 bg-emerald-50 p-2 rounded-full hover:bg-emerald-100 transition-colors">
+                            {isPlayingAudio ? (
+                              // Pause Icon
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                              </svg>
+                            ) : (
+                              // Play Icon
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132z" />
+                              </svg>
+                            )}
+                          </button>
+                          <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+                            <div className={`h-full bg-emerald-400 ${isPlayingAudio ? 'animate-pulse w-2/3' : 'w-0'}`}></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
