@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. IDENTITY & PREFERENCES
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  gradeLevel      String   // e.g., "Grade 10", "Undergrad", "PhD"
+  learningStyle   String   // "Visual", "Auditory", "Textual"
+  lowDataMode     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  
+  sessions        LearningSession[]
+}
+
+// 2. THE LEARNING LOOP
+model LearningSession {
+  id              String   @id @default(uuid())
+  userId          String
+  topic           String   // e.g., "Monsoon Formation"
+  user            User     @relation(fields: [userId], references: [id])
+  
+  messages        Message[]
+  validations     CouncilAudit[] // The LLM Council verification logs
+}
+
+// 3. MULTIMODAL CONTENT BLOCKS
+model Message {
+  id              String   @id @default(uuid())
+  sessionId       String
+  role            String   // "user", "assistant", "council_verifier"
+  content         String   // Main text content
+  
+  // Polymorphic attachments for multimodal output
+  diagramUrl      String?  // Generated Charts/Diagrams
+  audioUrl        String?  // TTS Audio path
+  videoUrl        String?  // Generated Explainer Video path
+  
+  confidenceScore Float?   // 0.0 to 1.0 (Populated by The Council)
+  
+  session         LearningSession @relation(fields: [sessionId], references: [id])
+}
+
+// 4. ACCURACY ENGINE (The LLM Council Integration)
+model CouncilAudit {
+  id              String   @id @default(uuid())
+  sessionId       String
+  originalClaim   String
+  verdict         String   // "APPROVED", "REVISED", "FLAGGED"
+  citation        String?
+  checkedBy       String   // "Math_Expert_Agent", "Fact_Checker_Agent"
+  
+  session         LearningSession @relation(fields: [sessionId], references: [id])
+}
