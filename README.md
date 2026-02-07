@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Astra Learn - The Universal AI Tutor
 
-## Getting Started
+Astra Learn is a 100% offline, privacy-first, multi-lingual AI tutoring platform capable of teaching ANY subject. It uses a multi-agent system (DeepSeek R1 + Phi-4) to generate, visualize, and verify educational content in real-time.
 
-First, run the development server:
+![Astra Learn Demo](public/preview.png)
 
+## 🚀 Key Features
+- **True Domain Agnostic**: Teaches anything from Quantum Physics to History.
+- **100% Offline**: Runs locally using Ollama. No internet required.
+- **Multi-Language**: Supports 10+ languages (English, Hindi, Bengali, Arabic, etc.).
+- **Dual-Agent Architecture**: 'Tutor' generates content, 'Council' verifies accuracy.
+- **Dynamic Visuals**: AI-generated Mermaid.js diagrams for every topic.
+- **Audio Narration**: TTS support for all languages.
+
+## 🛠️ Prerequisites
+
+1. **Node.js** (v18 or higher)
+2. **Ollama**: [Download here](https://ollama.com)
+
+## 📦 Setup & Installation (Judges Start Here!)
+
+> **Quick Start for Judges:** 
+> 1. Run `setup_models.bat` (Windows) or `./setup_models.sh` (Mac/Linux) to install AI models.
+> 2. Run `npm run dev` to launch the app.
+> 3. Go to http://localhost:3000 to verify functionality.
+
+### 1. Install Dependencies
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install AI Models (Crucial Step!)
+Astra Learn relies on specific local LLMs. Run the setup script to download them automatically:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**For Windows:**
+Double-click `setup_models.bat` or run:
+```bash
+.\setup_models.bat
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**For Mac/Linux:**
+```bash
+chmod +x setup_models.sh
+./setup_models.sh
+```
 
-## Learn More
+*Note: This will download `deepseek-r1:8b`, `phi4`, and `llama3` (~10GB total).*
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Run the Application
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🏗️ Architecture
+- **Frontend**: Next.js 16 (React, Tailwind, Lucide)
+- **AI Core**: Ollama (Local Inference)
+- **Visualization**: IP-Mermaid (Robust Diagramming)
+- **Voice**: Web Speech API
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🏆 Hackathon Notes
+- **Why no models in repo?** LLM files are too large for GitHub (GBs). The setup script ensures you get the exact versions needed.
+- **Offline Mode**: Once models are downloaded, you can disconnect the internet and the app works 100%.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+License: MIT
