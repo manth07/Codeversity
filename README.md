@@ -4,6 +4,15 @@ Astra Learn is a 100% offline, privacy-first, multi-lingual AI tutoring platform
 
 ![Astra Learn Demo](public/preview.png)
 
+## 🌐 Live Demo (No Install Needed)
+
+> **[PASTE YOUR NGROK LINK HERE]**
+
+**Important Notes for Judges:**
+1. ⚠️ **"Visit Site" Warning**: If you see a scary Ngrok warning page, just click **"Visit Site"** to continue. It's safe!
+2. **Local Tunnel**: This link connects directly to our laptop running the AI. If it's slow, it's because it's running on consumer hardware (but it works!).
+3. **Backup**: If the link is down, please follow the **Local Installation** steps below.
+
 ## 🚀 Key Features
 - **True Domain Agnostic**: Teaches anything from Quantum Physics to History.
 - **100% Offline**: Runs locally using Ollama. No internet required.
