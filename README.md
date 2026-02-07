@@ -1,53 +1,63 @@
-# Astra Learn - The Universal AI Tutor
+# Astra Learn - The Universal AI Tutor 🧠✨
 
-Astra Learn is a 100% offline, privacy-first, multi-lingual AI tutoring platform capable of teaching ANY subject. It uses a multi-agent system (DeepSeek R1 + Phi-4) to generate, visualize, and verify educational content in real-time.
+**Astra Learn** is a privacy-first, offline AI tutoring platform capable of teaching ANY subject. It uses a **multi-agent system** (DeepSeek R1 + Phi-4) to generate, visualize, and verify educational content in real-time, all running locally on your machine.
 
-![Astra Learn Demo](public/preview.png)
-
-## 🌐 Live Demo (No Install Needed)
-
-> **[PASTE YOUR NGROK LINK HERE]**
-
-**Important Notes for Judges:**
-1. ⚠️ **"Visit Site" Warning**: If you see a scary Ngrok warning page, just click **"Visit Site"** to continue. It's safe!
-2. **Local Tunnel**: This link connects directly to our laptop running the AI. If it's slow, it's because it's running on consumer hardware (but it works!).
-3. **Backup**: If the link is down, please follow the **Local Installation** steps below.
+![Astra Learn Preview](public/preview.png)
 
 ## 🚀 Key Features
-- **True Domain Agnostic**: Teaches anything from Quantum Physics to History.
-- **100% Offline**: Runs locally using Ollama. No internet required.
-- **Multi-Language**: Supports 10+ languages (English, Hindi, Bengali, Arabic, etc.).
-- **Dual-Agent Architecture**: 'Tutor' generates content, 'Council' verifies accuracy.
-- **Dynamic Visuals**: AI-generated Mermaid.js diagrams for every topic.
-- **Audio Narration**: TTS support for all languages.
 
-## 🛠️ Prerequisites
+### 1. **Hybrid Learning Mode ("ChatGPT-Style")**
+- **Unified Intelligence**: The AI intelligently detects your intent from a single prompt.
+    - Ask *"Explain Quantum Physics"* → You get a **Detailed Lesson**.
+    - Ask *"Quiz me on Quantum Physics"* → You get a **Practice Quiz**.
+    - Ask *"Explain and Quiz me"* → You get **Both** instantly.
 
-1. **Node.js** (v18 or higher)
-2. **Ollama**: [Download here](https://ollama.com)
+### 2. **Advanced Quiz System**
+- **Deep Problem Solving**: Generates multi-step problems with hints and collapsed solutions.
+- **Customizable**: Choose 5, 10, or 15 questions per session.
+- **Output Types**:
+    - **Interactive**: Text + Audio (TTS).
+    - **Text Only**: Silent mode for quiet study.
+    - **Video Script**: Generates a script for future video production.
 
-## 📦 Setup & Installation (Judges Start Here!)
+### 3. **Dynamic Visualizations & Math**
+- **Mermaid.js Diagrams**: Automatically generates flowcharts and diagrams for every topic.
+- **LaTeX Math Support**: Mathematical formulas (e.g., Quadratic Formula) render beautifully using KaTeX.
+    - Example: `\( x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a} \)`
 
-> **Quick Start for Judges:** 
-> 1. Run `setup_models.bat` (Windows) or `./setup_models.sh` (Mac/Linux) to install AI models.
-> 2. Run `npm run dev` to launch the app.
-> 3. Go to http://localhost:3000 to verify functionality.
+### 4. **Hardware Optimized (8GB VRAM)**
+- **Smart Model Selection**:
+    - **Tutor**: `deepseek-r1:8b` (Primary reasoning engine).
+    - **Council**: `phi4` (Quality assurance).
+- **Auto-Fallback**: If `phi4` uses too much memory, the system automatically switches to `llama3` to prevent crashes.
+
+### 5. **Pedagogical Integrity**
+- **"Verified by Council"**: Every lesson is audited by a second AI agent.
+- **Learning Objectives**: Clear goals listed for every session.
+- **Sources & References**: AI provides citations for its claims.
+
+---
+
+## 🛠️ Installation & Setup
+
+### Prerequisites
+1. **Node.js**: v18 or higher.
+2. **Ollama**: [Download here](https://ollama.com).
 
 ### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Install AI Models (Crucial Step!)
-Astra Learn relies on specific local LLMs. Run the setup script to download them automatically:
+### 2. Install AI Models
+Astra Learn relies on specific local LLMs. Run the setup script to download them:
 
-**For Windows:**
-Double-click `setup_models.bat` or run:
+**Windows:**
 ```bash
 .\setup_models.bat
 ```
 
-**For Mac/Linux:**
+**Mac/Linux:**
 ```bash
 chmod +x setup_models.sh
 ./setup_models.sh
@@ -61,14 +71,19 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## 🏗️ Architecture
-- **Frontend**: Next.js 16 (React, Tailwind, Lucide)
+---
+
+## 🏗️ Technical Architecture
+
+- **Frontend**: Next.js 16 (React, Tailwind, Lucide, Framer Motion)
 - **AI Core**: Ollama (Local Inference)
-- **Visualization**: IP-Mermaid (Robust Diagramming)
-- **Voice**: Web Speech API
+- **Math Rendering**: KaTeX + React-Latex-Next
+- **Visualization**: Mermaid.js
+- **State Management**: React Hooks (Custom)
 
 ## 🏆 Hackathon Notes
-- **Why no models in repo?** LLM files are too large for GitHub (GBs). The setup script ensures you get the exact versions needed.
+- **Why no models in repo?** LLM files are too large (GBs). The `setup_models` script ensures you get the exact versions needed.
 - **Offline Mode**: Once models are downloaded, you can disconnect the internet and the app works 100%.
 
-License: MIT
+## License
+MIT

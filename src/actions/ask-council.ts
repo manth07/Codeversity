@@ -6,8 +6,11 @@ export interface SessionPreferences {
     ageGroup: string;
     difficulty: string;
     learningStyle: string;
-    mode?: 'explain' | 'practice'; // NEW: Toggle between explanation and practice
-    language?: string; // NEW: Target language for content
+    mode?: 'explain' | 'practice' | 'hybrid'; // Added hybrid
+    language?: string;
+    outputType?: 'text_audio' | 'text_only' | 'video';
+    questionCount?: number; // 5, 10, 15
+    questionType?: 'mixed' | 'conceptual' | 'coding' | 'case_study' | 'deep_problem';
 }
 
 // ------------------------------------------------------------------
@@ -23,70 +26,99 @@ function cleanJson(text: string) {
 // ------------------------------------------------------------------
 function extractMermaidDiagram(text: string): string {
     // Remove any JSON artifacts that might have leaked in
-    // Look for mermaid diagram syntax patterns
     const lines = text.split('\n');
     const diagramLines: string[] = [];
     let inDiagram = false;
+    let type = '';
 
     for (const line of lines) {
-        const trimmed = line.trim();
+        let trimmed = line.trim();
 
-        // Start of diagram (graph TD, sequenceDiagram, etc.)
-        if (trimmed.match(/^(graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|mindmap)/)) {
+        // Start of diagram (Strict check)
+        const match = trimmed.match(/^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|mindmap)/);
+        if (match) {
             inDiagram = true;
+            type = match[1];
             diagramLines.push(trimmed);
             continue;
         }
 
-        // If we're in a diagram and hit JSON syntax, stop
-        if (inDiagram && (trimmed.includes('"keyClaims"') || trimmed.includes('"mainContent"') || trimmed.includes('"problemStatement"') || trimmed === '}')) {
+        // Stop on JSON syntax or end of block
+        if (inDiagram && (trimmed.includes('"keyClaims"') || trimmed.includes('"mainContent"') || trimmed.includes('```') || trimmed === '}')) {
             break;
         }
 
-        // Continue adding diagram lines
+        // Strict content check to avoid parsing Math equations as diagrams
         if (inDiagram && trimmed) {
+            // Reject lines that look like pure math equations (common AI hallucination in diagram fields)
+            if (trimmed.includes('=') && trimmed.includes('(') && !trimmed.includes('>') && !trimmed.includes('[')) {
+                // Likely a math formula like "x = (-b...)", ignore it unless it's strictly a label
+                // But wait, labels usually are in [] or ().
+                // If it DOES NOT have typical mermaid connectors (--> or ---), it might be junk.
+                // Sequence diagram uses ->, so be careful.
+                if (type.startsWith('graph') || type.startsWith('flowchart')) {
+                    if (!trimmed.includes('-->') && !trimmed.includes('---') && !trimmed.includes('subgraph') && !trimmed.includes('end')) {
+                        // Likely invalid for flowcharts unless it's a style def
+                        if (!trimmed.startsWith('classDef') && !trimmed.startsWith('style') && !trimmed.startsWith('linkStyle')) {
+                            continue;
+                        }
+                    }
+                }
+            }
+
             diagramLines.push(trimmed);
         }
     }
 
     let diagram = diagramLines.join('\n');
 
-    // Sanitize special characters that break Mermaid
+    // ---------------------------------------------------------
+    // CLEANUP PASS 1: Fix Common Structure Errors
+    // ---------------------------------------------------------
+
+    // Fix: [Label]ID -> ID[Label] (Common AI mistake)
+    diagram = diagram.replace(/\[([\w\s]+)\](\w+)/g, '$2[$1]');
+
+    // Fix: (Label)ID -> ID(Label)
+    diagram = diagram.replace(/\(([\w\s]+)\)(\w+)/g, '$2($1)');
+
+    // Fix: Malformed arrow endings >| -> |
+    diagram = diagram.replace(/\|>/g, '|');
+
+    // Fix: "-> |text|" to "-->|text|" for Graphs (Sequence uses ->)
+    if (type.startsWith('graph') || type.startsWith('flowchart')) {
+        diagram = diagram.replace(/->/g, '-->');
+        diagram = diagram.replace(/-->-->/g, '-->'); // Fix double replace
+    }
+
+    // ---------------------------------------------------------
+    // CLEANUP PASS 2: Sanitize Labels
+    // ---------------------------------------------------------
     diagram = diagram
-        // CRITICAL: Remove newlines within node labels (they break Mermaid)
+        // CRITICAL: Remove newlines within node labels
         .replace(/\[([^\]]*)\]/g, (match, label) => {
-            // Replace newlines, tabs, and multiple spaces within labels
             const cleanLabel = label
-                .replace(/\\n/g, ' ')  // Remove escaped newlines
-                .replace(/\n/g, ' ')   // Remove actual newlines
-                .replace(/\r/g, '')    // Remove carriage returns
-                .replace(/\t/g, ' ')   // Replace tabs with spaces
-                .replace(/\s+/g, ' ')  // Collapse multiple spaces
+                .replace(/\\n/g, ' ')
+                .replace(/\n/g, ' ')
+                .replace(/["']/g, '') // Remove quotes in labels
+                .replace(/\s+/g, ' ')
+                .replace(/\(/g, '') // RemoveParens to prevent breakout
+                .replace(/\)/g, '')
                 .trim();
             return `[${cleanLabel}]`;
         })
-        // Replace math symbols with text equivalents
-        .replace(/√/g, 'sqrt')
-        .replace(/²/g, '^2')
-        .replace(/³/g, '^3')
-        .replace(/÷/g, 'div')
-        .replace(/×/g, 'times')
-        .replace(/±/g, 'plus-minus')
-        .replace(/≈/g, 'approx')
-        .replace(/≠/g, 'not-equal')
-        .replace(/≤/g, 'less-equal')
-        .replace(/≥/g, 'greater-equal')
-        .replace(/π/g, 'pi')
-        .replace(/∞/g, 'infinity')
-        .replace(/∑/g, 'sum')
-        .replace(/∫/g, 'integral')
-        // Replace problematic ASCII characters ONLY in special contexts
-        // Be more conservative to avoid removing too much content
-        .replace(/\^/g, '')  // Remove carets
-        .replace(/_([a-zA-Z])/g, '$1')   // Remove underscores before letters only
-        .replace(/\s+\/\s+/g, ' over ') // Replace division symbol with spaces around it
-        // Remove other problematic Unicode
-        .replace(/[^\x00-\x7F]/g, ''); // Remove remaining non-ASCII
+        .replace(/\(([^)]*)\)/g, (match, label) => {
+            const cleanLabel = label
+                .replace(/\\n/g, ' ')
+                .replace(/\n/g, ' ')
+                .replace(/["']/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            return `(${cleanLabel})`;
+        })
+        // Remove problematic characters
+        .replace(/[^\x00-\x7F]/g, '') // Remove non-ASCII
+        .replace(/\\/g, '/'); // Swap backslashes
 
     return diagram;
 }
@@ -106,7 +138,8 @@ async function generateWithOllama(model: string, prompt: string) {
                 stream: false,
                 options: {
                     temperature: 0.7 // Creative but structured
-                }
+                },
+                keep_alive: "5m" // Keep model loaded briefly, but allow easy swap
             })
         });
 
@@ -133,110 +166,89 @@ async function generateWithOllama(model: string, prompt: string) {
 // MAIN ACTION
 // ------------------------------------------------------------------
 export async function askCouncil(sessionId: string, preferences: SessionPreferences) {
-    console.log(`[Council] 🔴 PROCESSING ON LOCAL AI | Topic: ${preferences.topic}`);
+    console.log(`[Council] 🔴 PROCESSING ON LOCAL AI | Request: ${preferences.topic}`);
 
     // "Astra Stack" Model Configuration (Optimized for 8GB VRAM)
+    // NOTE: For 8GB VRAM, we need small efficient models.
     const MODELS = {
         TUTOR: "deepseek-r1:8b",     // Chain of Thought (Primary Driver)
-        COUNCIL: "phi4",             // Logic & Safety (Small but smart)
-        FALLBACK: "llama3"           // Reliable backup
+        // Switch Council to a lighter model if memory is tight. 
+        // Phi-4 is heavy. Fallback to Llama3.2 or Phi-3 if needed. 
+        // User requested 8GB optimization.
+        COUNCIL: "phi4",
+        FALLBACK: "llama3"
     };
 
     try {
         // ---------------------------------------------------------
         // STEP 1: THE TUTOR AGENT (DeepSeek R1)
         // ---------------------------------------------------------
-        // Note: We use DeepSeek for its "Reasoning" capabilities (Chain of Thought).
         console.log(`[Council] Contacting Tutor using ${MODELS.TUTOR}...`);
 
-        const mode = preferences.mode || 'explain';
         const language = preferences.language || 'English';
+        const qCount = preferences.questionCount || 5;
 
-        const tutorPrompt = mode === 'practice' ? `
-        You are the 'Universal Teaching Agent' in PRACTICE MODE.
-        Topic: "${preferences.topic}"
-        Audience: ${preferences.ageGroup}
-        Difficulty: ${preferences.difficulty}
-        Language: Generate ALL content in ${language}
-
-        Generate ONLY a valid JSON object with this EXACT structure (no extra text):
+        // Build Unified Prompt to handle Hybrid Intent
+        const tutorPrompt = `
+        You are the 'Universal Teaching Agent'.
+        
+        USER REQUEST: "${preferences.topic}"
+        
+        CONTEXT:
+        - Audience: ${preferences.ageGroup}
+        - Difficulty: ${preferences.difficulty}
+        - Style: ${preferences.learningStyle}
+        - Language: Generate ALL content in ${language}.
+        
+        INSTRUCTIONS:
+        1. ANALYZE the User Request.
+           - If they ask to "Explain", generate 'mainContent' (Lesson).
+           - If they ask for "Example", "Quiz", "Practice", or "Problem", generate 'quiz'.
+           - If they ask for BOTH (e.g. "Explain and give quiz"), generate BOTH.
+           - If unclear, default to providing a Lesson ('mainContent') AND a small Quiz.
+           
+        2. CONTENT RULES:
+           - 'mainContent' (Lesson): Clear, engaging explanation. If OutputType is 'video', write as a script.
+           - 'quiz' (Practice): Can be 'mcq' OR 'problem' (Deep Problem Solving). 
+             - Use 'problem' if user asks for "hard", "deep", "thinking", or "complex".
+             - Use 'mcq' for standard checks.
+        
+        Generate ONLY a valid JSON object with this EXACT structure:
         {
-           "problemStatement": "A challenging practice question or exercise about ${preferences.topic}",
-           "hints": ["Helpful hint 1", "Helpful hint 2", "Helpful hint 3"],
-           "solution": "Step-by-step solution with clear explanations for each step",
-           "mermaidDiagram": "MERMAID_SYNTAX_HERE showing the solution process",
-           "learningObjectives": ["What students will learn from this exercise", "Key skill developed"],
+           "mainContent": "The lesson text or video script (Optional if user only wants quiz)",
+           "quiz": {
+               "type": "mcq" | "problem",  // Select based on request
+               "questions": [
+                  // IF MCQ
+                  {
+                     "id": 1,
+                     "question": "Question text...",
+                     "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
+                     "correctAnswer": "A",
+                     "explanation": "Why..."
+                  },
+                  // IF PROBLEM
+                  {
+                     "id": 1,
+                     "question": "Problem Scenario...",
+                     "hint": "Subtle hint...",
+                     "solution": "Detailed step-by-step solution...",
+                     "keyTakeaway": "Core concept..."
+                  }
+               ]
+           },
+           "mermaidDiagram": "MERMAID_SYNTAX_HERE (Optional)",
+           "learningObjectives": ["Objective 1", "Objective 2"],
            "estimatedMinutes": 10,
-           "keyClaims": ["Key concept 1", "Key concept 2"]
+           "keyClaims": ["Fact 1", "Fact 2"],
+           "sources": ["Citation 1"]
         }
         
-        Replace MERMAID_SYNTAX_HERE with Mermaid syntax visualizing the concept.
-        Use 'graph TD' for flowcharts or 'sequenceDiagram' for processes.
-        
-        CRITICAL MERMAID RULES:
-        - ALL diagram node labels MUST be in ENGLISH ONLY (even if content is in ${language})
-        - Keep node labels SIMPLE and DESCRIPTIVE
-        - NO newlines, NO parentheses, NO special characters: / ^ _ ( ) = + *
-        - SINGLE LINE labels only - NO multi-line text
-        - Use simple English words
-        - BAD: "Calculate sqrt(1 - v^2/c^2)" or "प्रकाश संश्लेषण" or "Low Pressure\n(India)"
-        - GOOD: "Light absorption" or "Chemical process" or "Low Pressure Area"
-        - Example: A[Start] --> B[Process step] --> C[Final result]
-        
-        CRITICAL: Return ONLY the JSON object.
-    ` : `
-        You are the 'Universal Teaching Agent' in EXPLANATION MODE.
-        Topic: "${preferences.topic}"
-        Audience: ${preferences.ageGroup}
-        Style: ${preferences.learningStyle}
-        Language: Generate ALL content in ${language}
-
-        Generate ONLY a valid JSON object with this EXACT structure (no extra text):
-        {
-           "mainContent": "A clear, engaging explanation (3-4 sentences).",
-           "mermaidDiagram": "MERMAID_SYNTAX_HERE",
-           "learningObjectives": ["What students will understand after reading", "Key takeaway 2"],
-           "estimatedMinutes": 5,
-           "keyClaims": ["Specific fact 1", "Specific fact 2", "Specific fact 3"]
-        }
-        
-        Replace MERMAID_SYNTAX_HERE with ONLY the Mermaid.js diagram syntax. Choose the appropriate diagram type:
-        - Use 'graph TD' for processes, flows, cycles (e.g., photosynthesis, water cycle, mitosis)
-        - Use 'sequenceDiagram' for step-by-step interactions
-        - Use 'graph LR' for timelines, cause-effect chains
-        
-        EXAMPLE for 'Black Holes':
-        graph TD
-            A[Massive Star] -->|Gravitational Collapse| B[Singularity]
-            B --> C[Event Horizon]
-            C --> D[Accretion Disk]
-            D -->|Matter Spirals| E[X-ray Emission]
-        
-        EXAMPLE for 'Photosynthesis':
-        graph TD
-            A[Sunlight] --> B[Chlorophyll]
-            B --> C[Water Split]
-            C --> D[Oxygen Released]
-            C --> E[Electrons]
-            E --> F[ATP Created]
-            F --> G[Calvin Cycle]
-            G --> H[Glucose]
-        
-        RULES:
-        - ALL diagram node labels MUST be in ENGLISH ONLY (even if content is in ${language})
-        - mermaidDiagram must contain ONLY Mermaid syntax, no JSON
-        - Use clear, short English node labels
-        - NO newlines, NO parentheses, NO special characters: / ^ _ ( ) = + *
-        - SINGLE LINE labels only
-        - Show logical flow with --> arrows
-        - Use |label| on arrows for transitions
-        - Keep 5-8 nodes maximum
-        - Ensure valid Mermaid.js code
-        - learningObjectives should be specific and actionable
-        - estimatedMinutes should be realistic (3-15 minutes)
-        
-        CRITICAL: Return ONLY the JSON object.
-    `;
+        CONSTRAINTS:
+        - If 'quiz' is generated, include EXACTLY ${qCount} questions.
+        - MERMAID: Use 'graph TD'. English labels ONLY. NO special chars. NO formulas.
+        - Return ONLY JSON.
+        `;
 
         // Logic to try specific model, fall back to generic Llama3 if missing
         let draft;
@@ -253,23 +265,22 @@ export async function askCouncil(sessionId: string, preferences: SessionPreferen
         console.log(`[Council] Auditing Content with ${MODELS.COUNCIL}...`);
 
         const councilPrompt = `
-        You are the 'Audit Council' using the Phi-4 Mini Protocol.Review this content for safety and accuracy.
+        You are the 'Audit Council' using the Phi-4 Mini Protocol. Review this content for safety and accuracy.
 
-            Content: "${draft.mainContent}"
-        Claims: ${JSON.stringify(draft.keyClaims)}
+        Content: "${draft.mainContent || 'Quiz Only'}"
+        Claims: ${JSON.stringify(draft.keyClaims || [])}
 
         Generate a JSON object with this EXACT structure:
         {
-            "verdict": "APPROVED"(or "REVISED" / "FLAGGED"),
-                "confidenceScore": 0.98,
-                    "safetyCheck": {
+            "verdict": "APPROVED",
+            "confidenceScore": 0.98,
+            "safetyCheck": {
                 "isSafe": true,
-                    "isEthical": true,
-                        "isCopyrightFree": true,
-                            "isPedagogicallyNeutral": true
+                "isEthical": true,
+                "isCopyrightFree": true,
+                "isPedagogicallyNeutral": true
             },
-            "auditNotes": "Brief verification notes.",
-                "verifierIdentity": "Phi-4_Mini_Audit_Bot"
+            "auditNotes": "Brief verification notes."
         }
         `;
 
@@ -277,7 +288,9 @@ export async function askCouncil(sessionId: string, preferences: SessionPreferen
         try {
             audit = await generateWithOllama(MODELS.COUNCIL, councilPrompt);
         } catch (e) {
-            console.warn(`[Council] Primary Auditor(${MODELS.COUNCIL}) failed, falling back to ${MODELS.FALLBACK} `);
+            // Memory Fallback: If Phi-4 fails (likely OOM on 8GB VRAM with DeepSeek loaded), 
+            // fallback to Llama3 which is smaller/faster or assumed loaded.
+            console.warn(`[Council] Primary Auditor(${MODELS.COUNCIL}) failed (likely OOM), falling back to ${MODELS.FALLBACK} `);
             audit = await generateWithOllama(MODELS.FALLBACK, councilPrompt);
         }
 
@@ -285,7 +298,8 @@ export async function askCouncil(sessionId: string, preferences: SessionPreferen
             success: true,
             data: {
                 tutor: draft,
-                council: audit
+                council: audit, // Contains confidenceScore
+                sources: draft.sources || ["DeepSeek-R1 Internal Knowledge Base"]
             }
         };
 
@@ -297,5 +311,68 @@ export async function askCouncil(sessionId: string, preferences: SessionPreferen
             success: false,
             error: "Ollama Connection Failed. Please ensure Ollama is running (`ollama run llama3`). DETAILS: " + (error as Error).message
         };
+    }
+}
+
+// ------------------------------------------------------------------
+// ACTION: Chat with Tutor (Follow-up)
+// ------------------------------------------------------------------
+export interface ChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export async function chatWithTutor(history: ChatMessage[], question: string, topic: string) {
+    console.log(`[Council] 💬 Chatting about: ${topic}`);
+
+    const MODELS = {
+        TUTOR: "deepseek-r1:8b",
+        FALLBACK: "llama3"
+    };
+
+    // Construct Context Window
+    const recentHistory = history.slice(-6);
+
+    let prompt = `
+    You are the 'Universal Teaching Agent' having a conversation about "${topic}".
+    
+    PREVIOUS CONTEXT:
+    ${recentHistory.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}
+    
+    USER'S NEW QUESTION: "${question}"
+    
+    INSTRUCTIONS:
+    - Answer the question directly and concisely.
+    - specific to the topic "${topic}".
+    - Output ONLY the answer text. No JSON.
+    `;
+
+    try {
+        const response = await fetch('http://127.0.0.1:11434/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: MODELS.TUTOR,
+                prompt: prompt,
+                stream: false,
+                options: { temperature: 0.7 }
+            })
+        });
+
+        if (!response.ok) throw new Error("Ollama API Failed");
+
+        const data = await response.json();
+        /* 
+           Reuse cleanJson to remove any potential markdown code blocks 
+           that might confuse the simple text renderer, though usually 
+           DeepSeek is good at following "Output ONLY text".
+        */
+        const answer = cleanJson(data.response);
+
+        return { success: true, answer };
+
+    } catch (e) {
+        console.error("Chat Error:", e);
+        return { success: false, error: "Failed to reply." };
     }
 }
